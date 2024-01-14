@@ -5,7 +5,7 @@ permalink: /about/
 ---
 
 
-<img src="{{ "/assets/IMG_0603.jpg" | relative_url }}" alt="avatar" style="height:150px;width:150px;border-radius: 50%">
+<img src="{{ "assets/IMG_0603.jpg" | relative_url }}" alt="avatar" style="height:150px;width:150px;border-radius: 50%">
 
 <br>
 
