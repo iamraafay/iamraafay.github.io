@@ -1,0 +1,59 @@
+# Blog Post Topic Queue
+#
+# Add topics here for automated post generation.
+# The GitHub Action picks the first topic with status: pending,
+# generates a post, and updates the status to: published.
+#
+# Format:
+#   - title: "Short descriptive title"
+#     description: "A few sentences on what the post should cover"
+#     tags: "space-separated tags"
+#     category: "category-name"
+#     status: pending | published
+#
+# Tip: Add new topics to the bottom of the list.
+
+topics:
+  - title: "How I Automated My Blog With Claude"
+    description: >
+      Meta post about setting up this exact pipeline — using Claude API
+      and GitHub Actions to generate blog posts, with a human review step
+      via pull requests. Walk through the architecture and why it works.
+    tags: "claude automation github-actions"
+    category: ai
+    status: pending
+
+  - title: "Building a visionOS App From Scratch"
+    description: >
+      Walkthrough of starting a new visionOS project, the key differences
+      from iOS development, spatial computing concepts, and lessons learned.
+    tags: "visionos apple swift"
+    category: ios
+    status: pending
+
+  - title: "Claude as a Pair Programmer — What Works and What Doesn't"
+    description: >
+      Honest take on using Claude for daily development work. What tasks
+      it excels at, where it falls short, and how to get the best results.
+      Include specific examples from real projects.
+    tags: "claude ai productivity"
+    category: ai
+    status: pending
+
+  - title: "Swift Concurrency Patterns I Actually Use"
+    description: >
+      Practical Swift concurrency patterns — async/await, actors,
+      task groups — with real examples. Focus on patterns that solve
+      actual problems, not textbook examples.
+    tags: "swift ios concurrency"
+    category: ios
+    status: pending
+
+  - title: "Shipping Side Projects Faster With AI"
+    description: >
+      How AI tools have changed the economics of side projects. What used
+      to take weeks now takes days. Share a concrete example of a project
+      built quickly with Claude's help.
+    tags: "ai productivity side-projects"
+    category: ai
+    status: pending

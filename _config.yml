@@ -24,7 +24,7 @@ email: sayhello@abdurraafay.com
 description: >- # this means to ignore newlines until "baseurl:"
   A Sofware Engineer building on Apple platforms.
 baseurl: "" # the subpath of your site, e.g. /blog
-url: "https://abdurraafay.com/" # the base hostname & protocol for your site, e.g. https://abdurraafay.com/
+url: "https://iamraafay.github.io" # the base hostname & protocol for your site
 twitter_username: mohdabdurraafay
 github_username:  iamraafay
 linkedin_username: mohdabdurraafay
@@ -48,14 +48,17 @@ include: [".well-known"]
 # Excluded items can be processed by explicitly listing the directories or
 # their entries' file path in the `include:` list.
 #
-# exclude:
-#   - .sass-cache/
-#   - .jekyll-cache/
-#   - gemfiles/
-#   - Gemfile
-#   - Gemfile.lock
-#   - node_modules/
-#   - vendor/bundle/
-#   - vendor/cache/
-#   - vendor/gems/
-#   - vendor/ruby/
+exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - gemfiles/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - topics.yml
+  - tags_generator.py
+  - .claude/
