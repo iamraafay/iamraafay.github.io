@@ -19,8 +19,6 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,68 +33,80 @@ jobs:
 
       - name: Resolve topic
         id: topic
+        env:
+          INPUT_TOPIC: ${{ github.event.inputs.topic }}
+          INPUT_CONTEXT: ${{ github.event.inputs.additional_context }}
         run: |
           python3 << 'PYEOF'
-          import os, yaml, json
+          import os, yaml
 
-          manual_topic = "${{ github.event.inputs.topic }}"
-          extra_context = "${{ github.event.inputs.additional_context }}"
+          manual_topic = os.environ.get("INPUT_TOPIC", "")
+          extra_context = os.environ.get("INPUT_CONTEXT", "")
+          output = os.environ["GITHUB_OUTPUT"]
 
           if manual_topic:
-              result = {
-                  "title": manual_topic,
-                  "description": extra_context or manual_topic,
-                  "tags": "blog",
-                  "category": "general",
-                  "from_queue": "false",
-                  "queue_index": "-1"
-              }
+              title = manual_topic
+              description = extra_context or manual_topic
+              tags = "blog"
+              category = "general"
+              from_queue = "false"
+              queue_index = "-1"
           else:
               with open("topics.yml") as f:
                   data = yaml.safe_load(f)
 
-              found = False
+              title = None
               for i, t in enumerate(data["topics"]):
                   if t["status"] == "pending":
-                      result = {
-                          "title": t["title"],
-                          "description": t.get("description", "").strip(),
-                          "tags": t.get("tags", "blog"),
-                          "category": t.get("category", "general"),
-                          "from_queue": "true",
-                          "queue_index": str(i)
-                      }
-                      found = True
+                      title = t["title"]
+                      description = t.get("description", "").strip()
+                      tags = t.get("tags", "blog")
+                      category = t.get("category", "general")
+                      from_queue = "true"
+                      queue_index = str(i)
                       break
 
-              if not found:
+              if not title:
                   print("::error::No pending topics in topics.yml")
                   raise SystemExit(1)
 
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              for k, v in result.items():
-                  f.write(f"{k}={v}\n")
+          with open(output, "a") as f:
+              f.write(f"title={title}\n")
+              # Use delimiter syntax for multiline description
+              f.write(f"description<<DESCEOF\n")
+              f.write(f"{description}\n")
+              f.write(f"DESCEOF\n")
+              f.write(f"tags={tags}\n")
+              f.write(f"category={category}\n")
+              f.write(f"from_queue={from_queue}\n")
+              f.write(f"queue_index={queue_index}\n")
 
-          print(f"Topic: {result['title']}")
+          print(f"Topic: {title}")
           PYEOF
 
       - name: Generate post with Claude
         id: generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TOPIC_TITLE: ${{ steps.topic.outputs.title }}
+          TOPIC_DESCRIPTION: ${{ steps.topic.outputs.description }}
+          TOPIC_TAGS: ${{ steps.topic.outputs.tags }}
+          TOPIC_CATEGORY: ${{ steps.topic.outputs.category }}
+          EXTRA_CONTEXT: ${{ github.event.inputs.additional_context }}
         run: |
           python3 << 'PYEOF'
           import json, os, urllib.request, datetime
 
           today = datetime.date.today().isoformat()
 
-          # Read the prompt template
           with open(".claude/blog-prompt.md") as f:
               prompt_template = f.read()
 
-          title = "${{ steps.topic.outputs.title }}"
-          description = """${{ steps.topic.outputs.description }}"""
-          tags = "${{ steps.topic.outputs.tags }}"
-          category = "${{ steps.topic.outputs.category }}"
-          extra = "${{ github.event.inputs.additional_context }}"
+          title = os.environ["TOPIC_TITLE"]
+          description = os.environ["TOPIC_DESCRIPTION"]
+          tags = os.environ["TOPIC_TAGS"]
+          category = os.environ["TOPIC_CATEGORY"]
+          extra = os.environ.get("EXTRA_CONTEXT", "")
 
           full_prompt = f"""{prompt_template}
 
@@ -114,6 +124,11 @@ jobs:
 
           Return ONLY the complete markdown file content, starting with the YAML front matter (---) and ending with the post content. No code fences, no explanation."""
 
+          api_key = os.environ["ANTHROPIC_API_KEY"]
+          if not api_key:
+              print("::error::ANTHROPIC_API_KEY secret is not set")
+              raise SystemExit(1)
+
           request_body = json.dumps({
               "model": "claude-sonnet-4-5-20250929",
               "max_tokens": 4096,
@@ -125,26 +140,30 @@ jobs:
               data=request_body,
               headers={
                   "Content-Type": "application/json",
-                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "x-api-key": api_key,
                   "anthropic-version": "2023-06-01"
               }
           )
 
-          with urllib.request.urlopen(req) as resp:
-              data = json.loads(resp.read())
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read())
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f"::error::Claude API error ({e.code}): {body}")
+              raise SystemExit(1)
 
           post_content = data["content"][0]["text"]
 
-          # Generate filename
+          # Generate slug from title
           slug = title.lower()
-          for ch in [" ", "'", '"', "?", "!", ",", ".", ":", ";", "(", ")", "[", "]"]:
+          for ch in " '\"?!,.:;()[]{}#@&+=/\\":
               slug = slug.replace(ch, "-")
           while "--" in slug:
               slug = slug.replace("--", "-")
           slug = slug.strip("-")
           filename = f"{today}-{slug}.markdown"
 
-          # Write the post
           post_path = f"_posts/{filename}"
           with open(post_path, "w") as f:
               f.write(post_content)
@@ -159,11 +178,13 @@ jobs:
 
       - name: Update topic queue
         if: steps.topic.outputs.from_queue == 'true'
+        env:
+          QUEUE_INDEX: ${{ steps.topic.outputs.queue_index }}
         run: |
           python3 << 'PYEOF'
-          import yaml
+          import os, yaml
 
-          idx = int("${{ steps.topic.outputs.queue_index }}")
+          idx = int(os.environ["QUEUE_INDEX"])
 
           with open("topics.yml") as f:
               data = yaml.safe_load(f)
@@ -179,30 +200,32 @@ jobs:
       - name: Create branch and PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          POST_SLUG: ${{ steps.generate.outputs.slug }}
+          POST_FILENAME: ${{ steps.generate.outputs.filename }}
+          POST_DATE: ${{ steps.generate.outputs.date }}
+          TOPIC_TITLE: ${{ steps.topic.outputs.title }}
+          FROM_QUEUE: ${{ steps.topic.outputs.from_queue }}
         run: |
-          BRANCH="blog/post-${{ steps.generate.outputs.slug }}"
-          FILENAME="${{ steps.generate.outputs.filename }}"
-          TITLE="${{ steps.topic.outputs.title }}"
+          BRANCH="blog/post-${POST_SLUG}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git checkout -b "$BRANCH"
-          git add "_posts/$FILENAME"
-          if [ "${{ steps.topic.outputs.from_queue }}" = "true" ]; then
+          git add "_posts/${POST_FILENAME}"
+          if [ "$FROM_QUEUE" = "true" ]; then
             git add topics.yml
           fi
-          git commit -m "Add blog post: $TITLE"
+          git commit -m "Add blog post: ${TOPIC_TITLE}"
           git push -u origin "$BRANCH"
 
           gh pr create \
-            --title "New Post: $TITLE" \
-            --body "$(cat <<PREOF
-          ## New Blog Post
+            --title "New Post: ${TOPIC_TITLE}" \
+            --body "## New Blog Post
 
-          **Topic:** $TITLE
-          **Generated:** ${{ steps.generate.outputs.date }}
-          **File:** \`_posts/$FILENAME\`
+          **Topic:** ${TOPIC_TITLE}
+          **Generated:** ${POST_DATE}
+          **File:** \`_posts/${POST_FILENAME}\`
 
           ### Review Checklist
           - [ ] Read through the post for accuracy
@@ -210,8 +233,6 @@ jobs:
           - [ ] Verify code examples (if any)
           - [ ] Check tags and categories
 
-          > Generated by Claude via GitHub Actions. Review, edit if needed, and merge to publish.
-          PREOF
-          )" \
+          > Generated by Claude via GitHub Actions. Review, edit if needed, and merge to publish." \
             --base main \
             --head "$BRANCH"
