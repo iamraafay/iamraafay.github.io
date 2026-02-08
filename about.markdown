@@ -1,16 +1,11 @@
 ---
-layout: about
+layout: page
 title: About
 permalink: /about/
 ---
 
+Hey, I'm Abdurraafay. I'm a Software Engineer who previously worked at Shopify. I've spent the last decade building and shipping software for Apple platforms -- iOS, macOS, and now visionOS.
 
-<img src="{{ "/assets/IMG_0603.JPG" | relative_url }}" alt="avatar" style="height:150px;width:150px;border-radius: 50%">
+These days I spend most of my time building things with Claude and writing about what I learn along the way. I like to muse about things I find interesting while building software, hiking, or on long drives.
 
-<br>
-
-Hey 👋🏽, there. Thanks for checkout this site. I like to muse about things I find interesting while building softwares, hiking or while on long drives.
-
-I'm a Software Engineer, previously worked at Shopify, Inc. I love working on large scale projects, enjoy challenges of scale. I have mostly been building and shipping softwares for Apple platforms like iOS, macOS and now visionOS for a decade now. I'm always looking to find interesting projects to work on.  
-
-Let's connect!
+I'm always looking for interesting projects to work on. Let's connect.
