@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       additional_context:
-        description: 'Any extra context or instructions for the post'
+        description: 'Extra context or instructions for the post'
         required: false
         type: string
 
@@ -19,216 +19,198 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read prompt template
-        id: prompt
-        run: |
-          PROMPT_TEMPLATE=$(cat .claude/blog-prompt.md)
-          echo "template<<PROMPT_EOF" >> "$GITHUB_OUTPUT"
-          echo "$PROMPT_TEMPLATE" >> "$GITHUB_OUTPUT"
-          echo "PROMPT_EOF" >> "$GITHUB_OUTPUT"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Pick topic from queue
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Resolve topic
         id: topic
         run: |
-          if [ -n "${{ github.event.inputs.topic }}" ]; then
-            echo "title=${{ github.event.inputs.topic }}" >> "$GITHUB_OUTPUT"
-            echo "description=${{ github.event.inputs.additional_context }}" >> "$GITHUB_OUTPUT"
-            echo "tags=blog" >> "$GITHUB_OUTPUT"
-            echo "category=general" >> "$GITHUB_OUTPUT"
-            echo "from_queue=false" >> "$GITHUB_OUTPUT"
-          else
-            # Parse the first pending topic from topics.yml
-            TITLE=$(python3 -c "
-          import yaml
-          with open('topics.yml') as f:
-              data = yaml.safe_load(f)
-          for t in data['topics']:
-              if t['status'] == 'pending':
-                  print(t['title'])
-                  break
-          ")
-            DESCRIPTION=$(python3 -c "
-          import yaml
-          with open('topics.yml') as f:
-              data = yaml.safe_load(f)
-          for t in data['topics']:
-              if t['status'] == 'pending':
-                  print(t['description'].strip())
-                  break
-          ")
-            TAGS=$(python3 -c "
-          import yaml
-          with open('topics.yml') as f:
-              data = yaml.safe_load(f)
-          for t in data['topics']:
-              if t['status'] == 'pending':
-                  print(t['tags'])
-                  break
-          ")
-            CATEGORY=$(python3 -c "
-          import yaml
-          with open('topics.yml') as f:
-              data = yaml.safe_load(f)
-          for t in data['topics']:
-              if t['status'] == 'pending':
-                  print(t['category'])
-                  break
-          ")
+          python3 << 'PYEOF'
+          import os, yaml, json
 
-            if [ -z "$TITLE" ]; then
-              echo "::error::No pending topics found in topics.yml"
-              exit 1
-            fi
+          manual_topic = "${{ github.event.inputs.topic }}"
+          extra_context = "${{ github.event.inputs.additional_context }}"
 
-            echo "title=$TITLE" >> "$GITHUB_OUTPUT"
-            echo "description<<DESC_EOF" >> "$GITHUB_OUTPUT"
-            echo "$DESCRIPTION" >> "$GITHUB_OUTPUT"
-            echo "DESC_EOF" >> "$GITHUB_OUTPUT"
-            echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
-            echo "category=$CATEGORY" >> "$GITHUB_OUTPUT"
-            echo "from_queue=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Generate blog post with Claude
-        id: generate
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          TODAY=$(date +%Y-%m-%d)
-          SLUG=$(echo "${{ steps.topic.outputs.title }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-          FILENAME="${TODAY}-${SLUG}.markdown"
-
-          echo "date=$TODAY" >> "$GITHUB_OUTPUT"
-          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
-          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
-
-          # Build the prompt for Claude
-          cat > /tmp/claude-request.json << 'REQEOF'
-          {
-            "model": "claude-sonnet-4-5-20250929",
-            "max_tokens": 4096,
-            "messages": [
-              {
-                "role": "user",
-                "content": "PROMPT_PLACEHOLDER"
+          if manual_topic:
+              result = {
+                  "title": manual_topic,
+                  "description": extra_context or manual_topic,
+                  "tags": "blog",
+                  "category": "general",
+                  "from_queue": "false",
+                  "queue_index": "-1"
               }
-            ]
-          }
-          REQEOF
+          else:
+              with open("topics.yml") as f:
+                  data = yaml.safe_load(f)
 
-          # Build the actual prompt
-          FULL_PROMPT=$(cat <<PROMPTEOF
-          ${PROMPT_TEMPLATE}
+              found = False
+              for i, t in enumerate(data["topics"]):
+                  if t["status"] == "pending":
+                      result = {
+                          "title": t["title"],
+                          "description": t.get("description", "").strip(),
+                          "tags": t.get("tags", "blog"),
+                          "category": t.get("category", "general"),
+                          "from_queue": "true",
+                          "queue_index": str(i)
+                      }
+                      found = True
+                      break
+
+              if not found:
+                  print("::error::No pending topics in topics.yml")
+                  raise SystemExit(1)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              for k, v in result.items():
+                  f.write(f"{k}={v}\n")
+
+          print(f"Topic: {result['title']}")
+          PYEOF
+
+      - name: Generate post with Claude
+        id: generate
+        run: |
+          python3 << 'PYEOF'
+          import json, os, urllib.request, datetime
+
+          today = datetime.date.today().isoformat()
+
+          # Read the prompt template
+          with open(".claude/blog-prompt.md") as f:
+              prompt_template = f.read()
+
+          title = "${{ steps.topic.outputs.title }}"
+          description = """${{ steps.topic.outputs.description }}"""
+          tags = "${{ steps.topic.outputs.tags }}"
+          category = "${{ steps.topic.outputs.category }}"
+          extra = "${{ github.event.inputs.additional_context }}"
+
+          full_prompt = f"""{prompt_template}
 
           ---
 
           Write a blog post with the following details:
 
-          **Topic:** ${{ steps.topic.outputs.title }}
-          **Description:** ${{ steps.topic.outputs.description }}
-          **Tags:** ${{ steps.topic.outputs.tags }}
-          **Category:** ${{ steps.topic.outputs.category }}
-          **Date:** ${TODAY}
+          **Topic:** {title}
+          **Description:** {description}
+          **Tags:** {tags}
+          **Category:** {category}
+          **Date:** {today}
 
-          Additional context: ${{ github.event.inputs.additional_context }}
+          {f'Additional context: {extra}' if extra else ''}
 
-          Return ONLY the complete markdown file content, starting with the YAML front matter (---) and ending with the post content. Do not wrap it in a code block or add any explanation.
-          PROMPTEOF
+          Return ONLY the complete markdown file content, starting with the YAML front matter (---) and ending with the post content. No code fences, no explanation."""
+
+          request_body = json.dumps({
+              "model": "claude-sonnet-4-5-20250929",
+              "max_tokens": 4096,
+              "messages": [{"role": "user", "content": full_prompt}]
+          }).encode()
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=request_body,
+              headers={
+                  "Content-Type": "application/json",
+                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "anthropic-version": "2023-06-01"
+              }
           )
 
-          PROMPT_TEMPLATE='${{ steps.prompt.outputs.template }}'
+          with urllib.request.urlopen(req) as resp:
+              data = json.loads(resp.read())
 
-          # Escape the prompt for JSON
-          ESCAPED_PROMPT=$(echo "$FULL_PROMPT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          post_content = data["content"][0]["text"]
 
-          # Build request JSON properly
-          python3 -c "
-          import json
-          prompt = $ESCAPED_PROMPT
-          request = {
-              'model': 'claude-sonnet-4-5-20250929',
-              'max_tokens': 4096,
-              'messages': [
-                  {'role': 'user', 'content': prompt}
-              ]
-          }
-          with open('/tmp/claude-request.json', 'w') as f:
-              json.dump(request, f)
-          "
+          # Generate filename
+          slug = title.lower()
+          for ch in [" ", "'", '"', "?", "!", ",", ".", ":", ";", "(", ")", "[", "]"]:
+              slug = slug.replace(ch, "-")
+          while "--" in slug:
+              slug = slug.replace("--", "-")
+          slug = slug.strip("-")
+          filename = f"{today}-{slug}.markdown"
 
-          # Call Claude API
-          RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
-            -H "content-type: application/json" \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
-            -H "anthropic-version: 2023-06-01" \
-            -d @/tmp/claude-request.json)
+          # Write the post
+          post_path = f"_posts/{filename}"
+          with open(post_path, "w") as f:
+              f.write(post_content)
 
-          # Extract the text content
-          POST_CONTENT=$(echo "$RESPONSE" | python3 -c "
-          import sys, json
-          data = json.load(sys.stdin)
-          if 'content' in data:
-              print(data['content'][0]['text'])
-          else:
-              print('ERROR:', json.dumps(data))
-              sys.exit(1)
-          ")
+          print(f"Generated: {post_path}")
 
-          # Write the post file
-          echo "$POST_CONTENT" > "_posts/${FILENAME}"
-          echo "Post generated: _posts/${FILENAME}"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"filename={filename}\n")
+              f.write(f"slug={slug}\n")
+              f.write(f"date={today}\n")
+          PYEOF
 
-      - name: Mark topic as published in queue
+      - name: Update topic queue
         if: steps.topic.outputs.from_queue == 'true'
         run: |
-          python3 -c "
+          python3 << 'PYEOF'
           import yaml
 
-          with open('topics.yml') as f:
+          idx = int("${{ steps.topic.outputs.queue_index }}")
+
+          with open("topics.yml") as f:
               data = yaml.safe_load(f)
 
-          for t in data['topics']:
-              if t['status'] == 'pending':
-                  t['status'] = 'published'
-                  break
+          data["topics"][idx]["status"] = "published"
 
-          with open('topics.yml', 'w') as f:
+          with open("topics.yml", "w") as f:
               yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-          "
 
-      - name: Create Pull Request
+          print(f"Marked topic {idx} as published")
+          PYEOF
+
+      - name: Create branch and PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           BRANCH="blog/post-${{ steps.generate.outputs.slug }}"
+          FILENAME="${{ steps.generate.outputs.filename }}"
+          TITLE="${{ steps.topic.outputs.title }}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git checkout -b "$BRANCH"
-          git add "_posts/${{ steps.generate.outputs.filename }}" topics.yml
-          git commit -m "Add blog post: ${{ steps.topic.outputs.title }}"
+          git add "_posts/$FILENAME"
+          if [ "${{ steps.topic.outputs.from_queue }}" = "true" ]; then
+            git add topics.yml
+          fi
+          git commit -m "Add blog post: $TITLE"
           git push -u origin "$BRANCH"
 
           gh pr create \
-            --title "New Post: ${{ steps.topic.outputs.title }}" \
-            --body "$(cat <<'PREOF'
+            --title "New Post: $TITLE" \
+            --body "$(cat <<PREOF
           ## New Blog Post
 
-          **Topic:** ${{ steps.topic.outputs.title }}
+          **Topic:** $TITLE
           **Generated:** ${{ steps.generate.outputs.date }}
-          **File:** `_posts/${{ steps.generate.outputs.filename }}`
+          **File:** \`_posts/$FILENAME\`
 
           ### Review Checklist
           - [ ] Read through the post for accuracy
           - [ ] Check tone and voice
           - [ ] Verify code examples (if any)
           - [ ] Check tags and categories
-          - [ ] Preview the rendered post
 
-          > This post was generated by Claude via GitHub Actions. Review, edit if needed, and merge to publish.
+          > Generated by Claude via GitHub Actions. Review, edit if needed, and merge to publish.
           PREOF
           )" \
             --base main \
