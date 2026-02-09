@@ -1,0 +1,64 @@
+---
+layout: post
+title: "ProseKit v0.1.0 — A Local Grammarly Alternative for macOS"
+date: 2026-02-09 12:00:00 -0500
+categories: releases
+tags: macos ai open-source
+excerpt_separator: <!--more-->
+---
+
+I just shipped the first public release of [ProseKit](https://github.com/iamraafay/ProseKit) -- a free, open-source macOS menu bar app that rewrites text in any app using a local LLM. No cloud, no accounts, no telemetry. Your text never leaves your Mac.
+
+<!--more-->
+
+## What it does
+
+You type something rough in any text field -- Slack, Mail, iMessage, Chrome, wherever. Press `⌘⇧G`. ProseKit reads the text via the macOS Accessibility API, runs it through a quantized Qwen3-8B model on your Apple Silicon GPU, and writes the polished version back. The whole thing takes 1-3 seconds.
+
+Don't like what it did? `⌘⇧Z` to undo.
+
+## Four modes
+
+| Mode | Shortcut | What it does |
+|------|----------|-------------|
+| Grammar Only | `⌘1` | Fixes errors without changing your voice |
+| Concise | `⌘2` | Same meaning, fewer words |
+| Casual | `⌘3` | Friendly and conversational |
+| Professional | `⌘4` | Polished and business-appropriate |
+
+## Why local?
+
+Grammarly sends every keystroke to their servers. ProseKit runs everything on-device. The tradeoff is that an 8B model can't match a cloud-hosted 70B+ model on quality -- but for the 90% case of fixing typos, tightening prose, and adjusting tone in messages and emails, it's more than good enough.
+
+The model (Qwen3-8B-4bit via Apple MLX) downloads once on first launch (~4.3 GB) and runs entirely on your GPU after that.
+
+## What went into this
+
+The release is simple but the work behind it wasn't. Some highlights from the build:
+
+- **Prompt engineering matters more than you'd think.** The v1 grammar prompt had a 39% overcorrection rate -- it was rewriting nearly everything. After 8 iterations evaluated against the JFLEG benchmark, the winning prompt framed corrections as "produce the smallest possible diff" and dropped overcorrection to 6.7%.
+- **The `/no_think` discovery.** Qwen3's chain-of-thought reasoning mode was on by default, causing 15-second latency and a 12.5% failure rate. A single `/no_think` directive in the system prompt brought latency down to 2.65 seconds with zero failures. A 5.7x speedup from one line.
+- **Few-shot beats rules.** For the style modes (Concise, Casual, Professional), prompts with concrete input/output examples consistently outperformed rule-based prompts on meaning preservation and stability.
+
+## Install
+
+Download the DMG from the [GitHub release](https://github.com/iamraafay/ProseKit/releases/tag/v0.1.0), or install via Homebrew:
+
+```bash
+brew tap iamraafay/prosekit
+brew install --cask prosekit
+```
+
+Requirements: macOS 14+, Apple Silicon (M1+), 8 GB unified memory.
+
+> **Note:** This build is unsigned. On first launch, right-click ProseKit.app and select Open to bypass Gatekeeper.
+
+## Early days -- testing needed
+
+This is v0.1.0 and it needs intensive testing. It works well in the apps I've tried (Messages, Slack, Safari, Mail), but every app implements text fields differently and there are edge cases I haven't hit yet. If you run into issues, [open an issue](https://github.com/iamraafay/ProseKit/issues) -- it genuinely helps.
+
+## What's next
+
+The roadmap is full of ideas. One of the bigger ones is building a feedback pipeline -- collecting user corrections (locally, of course) so we can fine-tune the model's prompt weights and improve rewrite quality over time based on how people actually use it. Beyond that, there's a long list of features and improvements I want to explore.
+
+More on all of that in future posts. For now, [give it a try](https://github.com/iamraafay/ProseKit/releases/tag/v0.1.0) and let me know what you think.
