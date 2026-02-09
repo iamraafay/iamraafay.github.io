@@ -12,6 +12,7 @@ github_username: iamraafay
 linkedin_username: mohdabdurraafay
 copyright: "Mohammad Abdurraafay"
 show_excerpts: true
+future: true
 
 header_pages:
   - about.markdown
