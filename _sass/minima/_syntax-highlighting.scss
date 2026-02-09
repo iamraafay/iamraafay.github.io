@@ -42,30 +42,3 @@
   .bp                 { color: #8b949e; }
   .il                 { color: #79c0ff; }
 }
-
-// Light mode overrides
-[data-theme="light"] .highlight {
-  .c, .cm, .c1, .cs  { color: #6a737d; }
-  .err                { color: #cb2431; }
-  .k, .kc, .kd, .kn,
-  .kp, .kr            { color: #d73a49; }
-  .o                  { color: #d73a49; }
-  .cp                 { color: #6a737d; }
-  .gd                 { color: #cb2431; background-color: #ffeef0; }
-  .gi                 { color: #22863a; background-color: #f0fff4; }
-  .kt                 { color: #005cc5; }
-  .m, .mf, .mh,
-  .mi, .mo            { color: #005cc5; }
-  .s, .sb, .sc, .sd,
-  .s2, .se, .sh, .si,
-  .sx, .s1, .ss       { color: #032f62; }
-  .na                 { color: #005cc5; }
-  .nb                 { color: #e36209; }
-  .nc                 { color: #e36209; }
-  .nf                 { color: #6f42c1; }
-  .nn                 { color: #e36209; }
-  .nt                 { color: #22863a; }
-  .nv, .vc, .vg,
-  .vi                 { color: #005cc5; }
-  .sr                 { color: #032f62; }
-}

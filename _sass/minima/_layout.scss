@@ -34,11 +34,6 @@
   .nav-trigger { display: none; }
   .menu-icon { display: none; }
 
-  .theme-toggle {
-    margin-left: 16px;
-    line-height: 1;
-  }
-
   .page-link {
     font-family: $font-mono;
     font-size: 14px;
@@ -57,11 +52,6 @@
     top: 9px;
     right: 15px;
     text-align: right;
-
-    .theme-toggle {
-      float: right;
-      margin: 9px 0 0 8px;
-    }
 
     label[for="nav-trigger"] {
       display: block;
