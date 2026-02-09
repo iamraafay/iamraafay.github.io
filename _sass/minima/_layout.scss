@@ -33,6 +33,12 @@
 
   .nav-trigger { display: none; }
   .menu-icon { display: none; }
+
+  .theme-toggle {
+    margin-left: 16px;
+    line-height: 1;
+  }
+
   .page-link {
     font-family: $font-mono;
     font-size: 14px;
@@ -50,10 +56,12 @@
     position: absolute;
     top: 9px;
     right: 15px;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
     text-align: right;
+
+    .theme-toggle {
+      float: right;
+      margin: 9px 0 0 8px;
+    }
 
     label[for="nav-trigger"] {
       display: block;
@@ -75,7 +83,14 @@
       > svg { fill: var(--text-secondary); }
     }
 
-    input ~ .trigger { clear: both; display: none; }
+    .trigger {
+      clear: both;
+      display: none;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+    }
+
     input:checked ~ .trigger {
       display: block;
       padding-bottom: 5px;
@@ -86,10 +101,6 @@
       padding: 5px 10px;
       &:not(:last-child) { margin-right: 0; }
       margin-left: 20px;
-    }
-
-    .theme-toggle {
-      margin: 8px 10px 8px 20px;
     }
   }
 }

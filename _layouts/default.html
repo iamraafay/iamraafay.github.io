@@ -13,8 +13,12 @@
   <script>
     (function() {
       var saved = localStorage.getItem('theme');
-      var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-      document.documentElement.setAttribute('data-theme', theme);
+      if (saved && saved !== 'dark' && saved !== 'light') {
+        localStorage.removeItem('theme');
+        saved = null;
+      }
+      var system = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', saved || system);
     })();
   </script>
 </head>
