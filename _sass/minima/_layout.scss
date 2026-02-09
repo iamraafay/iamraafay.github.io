@@ -143,6 +143,19 @@
   p { margin-bottom: 0; }
 }
 
+.footer-tagline {
+  color: var(--text-muted);
+}
+
+// Homepage subtitle
+.site-subtitle {
+  font-family: $font-mono;
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+  .prompt { margin-right: 4px; }
+}
+
 // Page content
 .page-content {
   padding: 30px 0;
