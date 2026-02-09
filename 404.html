@@ -9,16 +9,22 @@ layout: default
     max-width: 600px;
     text-align: center;
   }
-  h1 {
+  .container h1 {
     margin: 30px 0;
     font-size: 4em;
     line-height: 1;
     letter-spacing: -1px;
+    color: var(--accent-primary);
+  }
+  .container .error-label {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--text-secondary);
+    font-size: 14px;
   }
 </style>
 
 <div class="container">
   <h1>404</h1>
-  <p><strong>Page not found.</strong></p>
+  <p class="error-label">$ cat page.html<br>cat: page.html: No such file or directory</p>
   <p>The page you're looking for doesn't exist. <a href="/">Head back home.</a></p>
 </div>
